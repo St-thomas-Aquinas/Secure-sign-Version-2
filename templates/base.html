@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+    <title>Document Signature System</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+</head>
+
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+
+    <div class="container">
+
+        <a class="navbar-brand" href="/">
+            DSS
+        </a>
+
+        <div>
+
+            {% if session.username %}
+
+                <a href="/dashboard" class="btn btn-sm btn-light">
+                    Dashboard
+                </a>
+
+                <a href="/incoming" class="btn btn-sm btn-warning">
+                    Incoming
+                </a>
+
+                <a href="/verify" class="btn btn-sm btn-info">
+                    Verify
+                </a>
+
+                <a href="/logout" class="btn btn-sm btn-danger">
+                    Logout
+                </a>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</nav>
+
+<div class="container mt-4">
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+
+            {% for message in messages %}
+
+                <div class="alert alert-info">
+                    {{ message }}
+                </div>
+
+            {% endfor %}
+
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+
+</div>
+
+</body>
+</html>
