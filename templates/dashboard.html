@@ -1,18 +1,59 @@
-<form method="POST" enctype="multipart/form-data">
+{% extends "base.html" %}
 
-    <div class="mb-3">
-        <label>Upload Document</label>
-        <input type="file" name="file" class="form-control" required>
+{% block content %}
+
+<div class="container mt-5">
+
+    <div class="card shadow-lg p-4">
+
+        <h3 class="mb-3">📄 Welcome {{ session.username }}</h3>
+
+        <!-- FLASH MESSAGES -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-info">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- SIGN FORM -->
+        <form method="POST" enctype="multipart/form-data">
+
+            <div class="mb-3">
+                <label class="form-label">Upload Document</label>
+                <input type="file" name="file" class="form-control" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Comment (optional)</label>
+                <textarea name="comment" class="form-control"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-success w-100">
+                ✍ Sign Document
+            </button>
+
+        </form>
+
+        <!-- DOWNLOAD -->
+        {% if signed_file %}
+
+            <hr>
+
+            <div class="alert alert-success mt-3">
+                ✅ Document signed successfully
+            </div>
+
+            <a href="{{ url_for('download', filename=signed_file) }}"
+               class="btn btn-primary w-100">
+                ⬇ Download Signed Document
+            </a>
+
+        {% endif %}
+
     </div>
 
-    <!-- NEW: COMMENT BOX -->
-    <div class="mb-3">
-        <label>Comment (optional)</label>
-        <textarea name="comment" class="form-control"></textarea>
-    </div>
+</div>
 
-    <button class="btn btn-success">
-        Sign Document
-    </button>
-
-</form>
+{% endblock %}
