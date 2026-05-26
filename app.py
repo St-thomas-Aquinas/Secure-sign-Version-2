@@ -15,7 +15,8 @@ from flask import (
     redirect,
     flash,
     session,
-    send_from_directory
+    send_from_directory,
+    url_for
 )
 
 from werkzeug.security import (
@@ -85,7 +86,7 @@ def init_db():
     conn = get_db()
     cur = conn.cursor()
 
-    # USERS
+    # USERS TABLE
     cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -96,7 +97,7 @@ def init_db():
     )
     """)
 
-    # DOCUMENTS
+    # DOCUMENTS TABLE
     cur.execute("""
     CREATE TABLE IF NOT EXISTS documents (
         id SERIAL PRIMARY KEY,
@@ -109,7 +110,7 @@ def init_db():
     )
     """)
 
-    # HISTORY
+    # DOCUMENT HISTORY
     cur.execute("""
     CREATE TABLE IF NOT EXISTS document_history (
         id SERIAL PRIMARY KEY,
@@ -212,6 +213,9 @@ def load_private_key(username, password):
 
     conn.close()
 
+    if not row:
+        raise Exception("User not found")
+
     cipher = Fernet(
         derive_key(password)
     )
@@ -242,6 +246,9 @@ def get_public_key(username):
     row = cur.fetchone()
 
     conn.close()
+
+    if not row:
+        raise Exception("Public key not found")
 
     return row[0]
 
@@ -519,57 +526,82 @@ def dashboard():
 
     if request.method == "POST":
 
-        file = request.files["file"]
+        try:
 
-        comment = request.form.get(
-            "comment",
-            ""
-        )
+            file = request.files["file"]
 
-        path = os.path.join(
-            UPLOAD_FOLDER,
-            f"{uuid.uuid4().hex}_{file.filename}"
-        )
+            comment = request.form.get(
+                "comment",
+                ""
+            )
 
-        file.save(path)
+            path = os.path.join(
+                UPLOAD_FOLDER,
+                f"{uuid.uuid4().hex}_{file.filename}"
+            )
 
-        private_key = load_private_key(
-            session["username"],
-            session["password"]
-        )
+            file.save(path)
 
-        signed_file = sign_file(
-            path,
-            session["username"],
-            private_key,
-            comment
-        )
+            private_key = load_private_key(
+                session["username"],
+                session["password"]
+            )
 
-        conn = get_db()
-        cur = conn.cursor()
+            signed_file = sign_file(
+                path,
+                session["username"],
+                private_key,
+                comment
+            )
 
-        cur.execute("""
-        INSERT INTO documents
-        (
-            document_name,
-            stored_file,
-            created_by,
-            current_holder,
-            status
-        )
-        VALUES (%s, %s, %s, %s, %s)
-        """, (
-            file.filename,
-            signed_file,
-            session["username"],
-            session["username"],
-            "SIGNED"
-        ))
+            conn = get_db()
+            cur = conn.cursor()
 
-        conn.commit()
-        conn.close()
+            cur.execute("""
+            INSERT INTO documents
+            (
+                document_name,
+                stored_file,
+                created_by,
+                current_holder,
+                status
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+            """, (
+                file.filename,
+                signed_file,
+                session["username"],
+                session["username"],
+                "SIGNED"
+            ))
 
-        flash("Document signed successfully")
+            document_id = cur.fetchone()[0]
+
+            cur.execute("""
+            INSERT INTO document_history
+            (
+                document_id,
+                signer,
+                comment,
+                action
+            )
+            VALUES (%s, %s, %s, %s)
+            """, (
+                document_id,
+                session["username"],
+                comment,
+                "CREATED"
+            ))
+
+            conn.commit()
+            conn.close()
+
+            flash("Document signed successfully")
+
+        except Exception as e:
+
+            flash(f"Signing failed: {str(e)}")
 
     return render_template(
         "dashboard.html",
@@ -577,7 +609,7 @@ def dashboard():
     )
 
 # =========================================
-# INCOMING
+# INCOMING DOCUMENTS
 # =========================================
 
 @app.route("/incoming")
@@ -590,7 +622,11 @@ def incoming():
     cur = conn.cursor()
 
     cur.execute("""
-    SELECT id, document_name, created_by, status
+    SELECT
+        id,
+        document_name,
+        created_by,
+        status
     FROM documents
     WHERE current_holder=%s
     ORDER BY id DESC
@@ -606,7 +642,90 @@ def incoming():
     )
 
 # =========================================
-# FORWARD
+# SENT DOCUMENTS
+# =========================================
+
+@app.route("/sent")
+def sent_documents():
+
+    if "username" not in session:
+        return redirect("/login")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT
+        id,
+        document_name,
+        current_holder,
+        status,
+        created_at
+    FROM documents
+    WHERE created_by=%s
+    ORDER BY id DESC
+    """, (session["username"],))
+
+    docs = cur.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "sent.html",
+        docs=docs
+    )
+
+# =========================================
+# DOCUMENT DETAILS
+# =========================================
+
+@app.route("/document/<int:doc_id>")
+def document_details(doc_id):
+
+    if "username" not in session:
+        return redirect("/login")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT
+        id,
+        document_name,
+        created_by,
+        current_holder,
+        status,
+        stored_file,
+        created_at
+    FROM documents
+    WHERE id=%s
+    """, (doc_id,))
+
+    document = cur.fetchone()
+
+    cur.execute("""
+    SELECT
+        signer,
+        comment,
+        action,
+        signed_at
+    FROM document_history
+    WHERE document_id=%s
+    ORDER BY id ASC
+    """, (doc_id,))
+
+    history = cur.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "document_details.html",
+        document=document,
+        history=history
+    )
+
+# =========================================
+# FORWARD DOCUMENT
 # =========================================
 
 @app.route("/forward/<int:doc_id>", methods=["GET", "POST"])
@@ -621,6 +740,7 @@ def forward(doc_id):
     if request.method == "POST":
 
         next_user = request.form["next_user"]
+
         comment = request.form["comment"]
 
         cur.execute("""
@@ -659,7 +779,7 @@ def forward(doc_id):
         """, (
             new_file,
             next_user,
-            "FORWARDED",
+            f"FORWARDED TO {next_user}",
             doc_id
         ))
 
@@ -676,7 +796,7 @@ def forward(doc_id):
             doc_id,
             session["username"],
             comment,
-            "FORWARDED"
+            f"FORWARDED TO {next_user}"
         ))
 
         conn.commit()
@@ -694,7 +814,52 @@ def forward(doc_id):
     )
 
 # =========================================
-# VERIFY
+# APPROVE DOCUMENT
+# =========================================
+
+@app.route("/approve/<int:doc_id>")
+def approve_document(doc_id):
+
+    if "username" not in session:
+        return redirect("/login")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+    UPDATE documents
+    SET status=%s
+    WHERE id=%s
+    """, (
+        "APPROVED",
+        doc_id
+    ))
+
+    cur.execute("""
+    INSERT INTO document_history
+    (
+        document_id,
+        signer,
+        comment,
+        action
+    )
+    VALUES (%s, %s, %s, %s)
+    """, (
+        doc_id,
+        session["username"],
+        "Document Approved",
+        "APPROVED"
+    ))
+
+    conn.commit()
+    conn.close()
+
+    flash("Document approved successfully")
+
+    return redirect("/incoming")
+
+# =========================================
+# VERIFY WEB
 # =========================================
 
 @app.route("/verify", methods=["GET", "POST"])
