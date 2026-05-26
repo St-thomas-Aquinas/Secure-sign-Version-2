@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card shadow p-4">
+
+    <h3 class="mb-4">
+        Sign Document
+    </h3>
+
+    <form method="POST" enctype="multipart/form-data">
+
+        <div class="mb-3">
+
+            <input
+                type="file"
+                name="file"
+                class="form-control"
+                required
+            >
+
+        </div>
+
+        <div class="mb-3">
+
+            <textarea
+                name="comment"
+                class="form-control"
+                placeholder="Comment"
+            ></textarea>
+
+        </div>
+
+        <button class="btn btn-success">
+            Sign Document
+        </button>
+
+    </form>
+
+    {% if signed_file %}
+
+        <hr>
+
+        <a
+            href="/download/{{ signed_file }}"
+            class="btn btn-success"
+        >
+            Download Signed Document
+        </a>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}
