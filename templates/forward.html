@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card shadow p-4">
+
+    <h3 class="mb-4">
+        Forward Document
+    </h3>
+
+    <form method="POST">
+
+        <div class="mb-3">
+
+            <input
+                type="text"
+                name="next_user"
+                class="form-control"
+                placeholder="Next User"
+                required
+            >
+
+        </div>
+
+        <div class="mb-3">
+
+            <textarea
+                name="comment"
+                class="form-control"
+                placeholder="Comment"
+            ></textarea>
+
+        </div>
+
+        <button class="btn btn-success">
+            Sign & Forward
+        </button>
+
+    </form>
+
+</div>
+
+{% endblock %}
