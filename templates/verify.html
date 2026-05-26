@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card shadow p-4">
+
+    <h2 class="mb-4">
+        Verify Document
+    </h2>
+
+    <form method="POST" enctype="multipart/form-data">
+
+        <div class="mb-3">
+
+            <input
+                type="file"
+                name="file"
+                class="form-control"
+                required
+            >
+
+        </div>
+
+        <button class="btn btn-primary">
+            Verify
+        </button>
+
+    </form>
+
+    {% if result %}
+
+        <hr>
+
+        <div class="alert alert-info">
+
+            {{ result }}
+
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}
