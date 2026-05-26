@@ -2,38 +2,24 @@
 
 {% block content %}
 
-<div class="card shadow p-4">
+<div class="container mt-4">
 
-    <h3 class="mb-4">
-        Forward Document
-    </h3>
+    <h3>Forward Document</h3>
 
     <form method="POST">
 
         <div class="mb-3">
-
-            <input
-                type="text"
-                name="next_user"
-                class="form-control"
-                placeholder="Next User"
-                required
-            >
-
+            <label>Next Approver Username</label>
+            <input type="text" name="next_user" class="form-control" required>
         </div>
 
         <div class="mb-3">
-
-            <textarea
-                name="comment"
-                class="form-control"
-                placeholder="Comment"
-            ></textarea>
-
+            <label>Comment</label>
+            <textarea name="comment" class="form-control"></textarea>
         </div>
 
-        <button class="btn btn-success">
-            Sign & Forward
+        <button class="btn btn-primary">
+            Forward Document
         </button>
 
     </form>
