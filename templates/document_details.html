@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card shadow p-4">
+
+    <h2 class="mb-4">
+        Document Details
+    </h2>
+
+    <p>
+        <strong>Filename:</strong>
+        {{ document.filename }}
+    </p>
+
+    <hr>
+
+    <h4>
+        Signature Chain
+    </h4>
+
+    {% for s in signatures %}
+
+        <div class="border rounded p-3 mb-3">
+
+            <p>
+                <strong>Signer:</strong>
+                {{ s.signer }}
+            </p>
+
+            <p>
+                <strong>Comment:</strong>
+                {{ s.comment }}
+            </p>
+
+        </div>
+
+    {% endfor %}
+
+    <hr>
+
+    <form method="POST" enctype="multipart/form-data">
+
+        <div class="mb-3">
+
+            <label class="form-label">
+                Comment
+            </label>
+
+            <textarea
+                name="comment"
+                class="form-control"
+            ></textarea>
+
+        </div>
+
+        <div class="mb-3">
+
+            <label class="form-label">
+                Forward To
+            </label>
+
+            <input
+                type="text"
+                name="forward_to"
+                class="form-control"
+            >
+
+        </div>
+
+        <button class="btn btn-success">
+            Sign and Forward
+        </button>
+
+    </form>
+
+</div>
+
+{% endblock %}
