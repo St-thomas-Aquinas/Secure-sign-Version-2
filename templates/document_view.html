@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <h3>📄 Document Details & Approval Chain</h3>
+
+    <!-- DOCUMENT INFO -->
+    <div class="card mt-3 p-3">
+
+        <h5>Document Information</h5>
+
+        <p><strong>Document ID:</strong> {{ document.id }}</p>
+        <p><strong>Name:</strong> {{ document.document_name }}</p>
+        <p><strong>Created By:</strong> {{ document.created_by }}</p>
+        <p><strong>Current Holder:</strong> {{ document.current_holder }}</p>
+        <p><strong>Status:</strong> 
+            <span class="badge bg-info">{{ document.status }}</span>
+        </p>
+        <p><strong>Created At:</strong> {{ document.created_at }}</p>
+
+        <a href="{{ url_for('download', filename=document.stored_file) }}" class="btn btn-primary btn-sm mt-2">
+            ⬇ Download Latest Version
+        </a>
+
+    </div>
+
+    <!-- SIGNATURE / HISTORY -->
+    <div class="card mt-4 p-3">
+
+        <h5>🧾 Approval / Signature History</h5>
+
+        {% if history %}
+
+            <table class="table table-striped mt-3">
+
+                <thead>
+                    <tr>
+                        <th>Signer</th>
+                        <th>Action</th>
+                        <th>Comment</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for h in history %}
+                    <tr>
+                        <td>{{ h[2] }}</td>
+                        <td>{{ h[4] }}</td>
+                        <td>{{ h[3] }}</td>
+                        <td>{{ h[5] }}</td>
+                    </tr>
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        {% else %}
+
+            <p>No history available yet.</p>
+
+        {% endif %}
+
+    </div>
+
+    <!-- OPTIONAL ACTIONS -->
+    <div class="card mt-4 p-3">
+
+        <h5>⚙ Actions</h5>
+
+        <a href="{{ url_for('forward', doc_id=document.id) }}" class="btn btn-success">
+            ➡ Forward Document
+        </a>
+
+        <a href="{{ url_for('incoming') }}" class="btn btn-secondary">
+            📥 Back to Inbox
+        </a>
+
+    </div>
+
+</div>
+
+{% endblock %}
