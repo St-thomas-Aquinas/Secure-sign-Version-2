@@ -2,23 +2,45 @@
 
 {% block content %}
 
-<div class="container mt-4">
+<h3>📨 Forward Document</h3>
 
-    <h3>Forward Document</h3>
+<div class="card p-4">
 
     <form method="POST">
 
         <div class="mb-3">
-            <label>Next Approver Username</label>
-            <input type="text" name="next_user" class="form-control" required>
+
+            <label class="form-label">
+                Forward To
+            </label>
+
+            <input
+                type="text"
+                name="next_user"
+                class="form-control"
+                required
+            >
+
         </div>
 
         <div class="mb-3">
-            <label>Comment</label>
-            <textarea name="comment" class="form-control"></textarea>
+
+            <label class="form-label">
+                Comment
+            </label>
+
+            <textarea
+                name="comment"
+                class="form-control"
+                rows="4"
+            ></textarea>
+
         </div>
 
-        <button class="btn btn-primary">
+        <button
+            type="submit"
+            class="btn btn-primary"
+        >
             Forward Document
         </button>
 
