@@ -2,65 +2,67 @@
 
 {% block content %}
 
-<div class="container mt-4">
+<h3>📥 Incoming Documents</h3>
 
-    <h3>📥 Incoming Documents</h3>
+{% if docs %}
 
-    {% if docs %}
+<table class="table table-bordered mt-3">
 
-        <table class="table table-striped mt-3">
+    <thead class="table-dark">
 
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Document</th>
-                    <th>Created By</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
+        <tr>
+            <th>ID</th>
+            <th>Document</th>
+            <th>Created By</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
 
-            <tbody>
+    </thead>
 
-                {% for doc in docs %}
+    <tbody>
 
-                <tr>
+        {% for doc in docs %}
 
-                    <td>{{ doc[0] }}</td>
-                    <td>{{ doc[1] }}</td>
-                    <td>{{ doc[2] }}</td>
-                    <td>{{ doc[3] }}</td>
+        <tr>
 
-                    <td>
+            <td>{{ doc[0] }}</td>
+            <td>{{ doc[1] }}</td>
+            <td>{{ doc[2] }}</td>
+            <td>{{ doc[3] }}</td>
 
-                        <!-- VIEW DOCUMENT -->
-                        <a href="/document/{{ doc[0] }}" class="btn btn-sm btn-info">
-                            View
-                        </a>
+            <td>
 
-                        <!-- FORWARD DOCUMENT -->
-                        <a href="/forward/{{ doc[0] }}" class="btn btn-sm btn-primary">
-                            Forward
-                        </a>
+                <a
+                    href="/document/{{ doc[0] }}"
+                    class="btn btn-sm btn-info"
+                >
+                    View
+                </a>
 
-                    </td>
+                <a
+                    href="/forward/{{ doc[0] }}"
+                    class="btn btn-sm btn-primary"
+                >
+                    Forward
+                </a>
 
-                </tr>
+            </td>
 
-                {% endfor %}
+        </tr>
 
-            </tbody>
+        {% endfor %}
 
-        </table>
+    </tbody>
 
-    {% else %}
+</table>
 
-        <div class="alert alert-warning mt-3">
-            No incoming documents
-        </div>
+{% else %}
 
-    {% endif %}
-
+<div class="alert alert-warning">
+    No incoming documents
 </div>
+
+{% endif %}
 
 {% endblock %}
