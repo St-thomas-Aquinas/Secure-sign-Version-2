@@ -1,72 +1,41 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Document Details</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
 
-{% block content %}
+<body>
 
-<h3>📄 Document Details</h3>
+<div class="container mt-4">
 
-<div class="card p-3 mb-4">
+    <h3>📄 Document Details</h3>
 
-    <p>
-        <strong>Document:</strong>
-        {{ document[1] }}
-    </p>
+    <div class="card p-3 mb-3">
+        <p><b>ID:</b> {{ document[0] }}</p>
+        <p><b>Name:</b> {{ document[1] }}</p>
+        <p><b>Created By:</b> {{ document[2] }}</p>
+        <p><b>Current Holder:</b> {{ document[3] }}</p>
+        <p><b>Status:</b> {{ document[4] }}</p>
+        <p><b>Created At:</b> {{ document[6] }}</p>
 
-    <p>
-        <strong>Created By:</strong>
-        {{ document[3] }}
-    </p>
+        <a href="{{ url_for('view_file', doc_id=document[0]) }}" class="btn btn-primary" target="_blank">
+            👁 View Document
+        </a>
+    </div>
 
-    <p>
-        <strong>Current Holder:</strong>
-        {{ document[4] }}
-    </p>
+    <h4>📜 Tracking History</h4>
 
-    <p>
-        <strong>Status:</strong>
-        {{ document[5] }}
-    </p>
-
-    <a
-        href="/download/{{ document[2] }}"
-        class="btn btn-success btn-sm"
-    >
-        Download Document
-    </a>
+    <ul class="list-group">
+        {% for h in history %}
+        <li class="list-group-item">
+            <b>{{ h[0] }}</b> - {{ h[2] }} <br>
+            <small>{{ h[1] }} | {{ h[3] }}</small>
+        </li>
+        {% endfor %}
+    </ul>
 
 </div>
 
-<h4>🕒 Workflow History</h4>
-
-<table class="table table-bordered">
-
-    <thead class="table-dark">
-
-        <tr>
-            <th>Signer</th>
-            <th>Comment</th>
-            <th>Action</th>
-            <th>Time</th>
-        </tr>
-
-    </thead>
-
-    <tbody>
-
-        {% for h in history %}
-
-        <tr>
-
-            <td>{{ h[0] }}</td>
-            <td>{{ h[1] }}</td>
-            <td>{{ h[2] }}</td>
-            <td>{{ h[3] }}</td>
-
-        </tr>
-
-        {% endfor %}
-
-    </tbody>
-
-</table>
-
-{% endblock %}
+</body>
+</html>
