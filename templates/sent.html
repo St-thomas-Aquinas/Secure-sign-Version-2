@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h3>📤 Sent Documents</h3>
+
+{% if docs %}
+
+<table class="table table-bordered mt-3">
+
+    <thead class="table-dark">
+
+        <tr>
+            <th>ID</th>
+            <th>Document</th>
+            <th>Current Holder</th>
+            <th>Status</th>
+            <th>Created At</th>
+            <th>Action</th>
+        </tr>
+
+    </thead>
+
+    <tbody>
+
+        {% for doc in docs %}
+
+        <tr>
+
+            <td>{{ doc[0] }}</td>
+            <td>{{ doc[1] }}</td>
+            <td>{{ doc[2] }}</td>
+            <td>{{ doc[3] }}</td>
+            <td>{{ doc[4] }}</td>
+
+            <td>
+
+                <a
+                    href="/document/{{ doc[0] }}"
+                    class="btn btn-sm btn-info"
+                >
+                    Track
+                </a>
+
+            </td>
+
+        </tr>
+
+        {% endfor %}
+
+    </tbody>
+
+</table>
+
+{% else %}
+
+<div class="alert alert-warning">
+    No sent documents
+</div>
+
+{% endif %}
+
+{% endblock %}
