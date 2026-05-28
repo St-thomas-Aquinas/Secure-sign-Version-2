@@ -946,8 +946,15 @@ def verify():
     if request.method == "POST":
 
         try:
+            if "file" not in request.files:
+                flash("No file uploaded")
+                return redirect("/verify")
 
             file = request.files["file"]
+
+            if file.filename == "":
+                flash("No file selected")
+                return redirect("/verify")
 
             path = os.path.join(
                 UPLOAD_FOLDER,
@@ -959,14 +966,9 @@ def verify():
             valid, result = verify_file(path)
 
         except Exception as e:
+            result = f"Error: {str(e)}"
 
-            result = str(e)
-
-    return render_template(
-        "verify.html",
-        result=result
-    )
-
+    return render_template("verify.html", result=result)
 # =========================================
 # WHATSAPP BOT
 # =========================================
