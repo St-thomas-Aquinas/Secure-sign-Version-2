@@ -176,6 +176,43 @@ def sign_file(file_path, username, private_key, comment=""):
     app.logger.info(f"Saved signed file: {output_path}")
     return output_name
 
+def verify_file(file_path):
+    with open(file_path, "rb") as f:
+        data = f.read()
+
+    if SIGNATURE_MARKER not in data:
+        return False, "No embedded signatures found"
+
+    try:
+        original_data, metadata_bytes = data.split(SIGNATURE_MARKER)
+        metadata = json.loads(metadata_bytes.decode())
+    except:
+        return False, "Corrupted metadata"
+
+    signatures = metadata.get("signatures", [])
+    current_hash = get_file_hash(original_data)
+    results = []
+
+    for sig in signatures:
+        signer = sig["signer"]
+        signature = bytes.fromhex(sig["signature"])
+        stored_hash = bytes.fromhex(sig["hash"])
+        public_key_hex = sig["public_key"]
+        comment = sig.get("comment", "")
+
+        if current_hash != stored_hash:
+            results.append(f"{signer}: DOCUMENT MODIFIED")
+            continue
+
+        public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key_hex))
+        try:
+            public_key.verify(signature, stored_hash)
+            results.append(f"{signer}: VALID SIGNATURE | Comment: {comment}")
+        except:
+            results.append(f"{signer}: INVALID SIGNATURE")
+
+    return True, "\n".join(results)
+
 # =========================================
 # ROUTES
 # =========================================
@@ -258,7 +295,6 @@ def dashboard():
 
 @app.route("/download/<filename>")
 def download(filename):
-    """Download document as attachment"""
     if "username" not in session:
         return redirect("/login")
     
@@ -403,7 +439,36 @@ def forward_document(doc_id):
 
     return redirect("/incoming")
 
-# ⚠️ THIS IS THE LINE THAT CAUSED THE ERROR. MAKE SURE IT HAS ():
+# =========================================
+# ✅ VERIFY ROUTE (RESTORED)
+# =========================================
+@app.route("/verify", methods=["GET", "POST"])
+def verify():
+    result = None
+    if request.method == "POST":
+        try:
+            if "file" not in request.files:
+                flash("No file uploaded")
+                return redirect("/verify")
+            
+            file = request.files["file"]
+            if file.filename == "":
+                flash("No file selected")
+                return redirect("/verify")
+            
+            path = os.path.join(UPLOAD_FOLDER, f"verify_{uuid.uuid4().hex}_{file.filename}")
+            file.save(path)
+            
+            valid, result = verify_file(path)
+            
+        except Exception as e:
+            result = f"Error: {str(e)}"
+            
+    return render_template("verify.html", result=result)
+
+# =========================================
+# LOGOUT
+# =========================================
 @app.route("/logout")
 def logout():
     session.clear()
