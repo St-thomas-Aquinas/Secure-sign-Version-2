@@ -9,10 +9,45 @@
     <p><strong>Created By:</strong> {{ document[3] }}</p>
     <p><strong>Current Holder:</strong> {{ document[4] }}</p>
     <p><strong>Status:</strong> {{ document[5] }}</p>
+    <p><strong>Step:</strong> {{ document[6] }}</p>
 
-    <a href="/download/{{ document[2] }}" class="btn btn-success btn-sm">
-        Download Document
+    <!-- DOWNLOAD BUTTON -->
+    <a href="/download/{{ document[2] }}" class="btn btn-success btn-sm mb-3">
+        ⬇️ Download Document
     </a>
+
+    <hr>
+
+    <!-- FORWARD FORM -->
+    <h5>📤 Forward Document</h5>
+    <form method="POST" action="/forward/{{ document[0] }}">
+        <div class="mb-3">
+            <label class="form-label"><strong>Forward To</strong></label>
+            <select name="forward_to" class="form-control" required>
+                <option value="" disabled selected>Select recipient...</option>
+                {% for user in users %}
+                    <option value="{{ user[0] }}">{{ user[0] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label"><strong>Copy To (CC)</strong></label>
+            <select name="copy_to" class="form-control">
+                <option value="">None</option>
+                {% for user in users %}
+                    <option value="{{ user[0] }}">{{ user[0] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label"><strong>Comment</strong></label>
+            <textarea name="comment" class="form-control" rows="3" placeholder="Add a note..."></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">📤 Forward Document</button>
+    </form>
 </div>
 
 <h4>🕒 Workflow History</h4>
