@@ -1,27 +1,62 @@
-<form method="POST" enctype="multipart/form-data">
+{% extends "base.html" %}
 
-    <input type="file" name="file" class="form-control" required>
+{% block content %}
 
-    <input type="text" name="comment" class="form-control mt-2" placeholder="Comment">
+<div class="container mt-4">
 
-    <!-- FORWARD TO -->
-    <label class="mt-3">Forward To</label>
-    <select name="forward_to" class="form-control">
-        <option value="">None</option>
-        {% for user in users %}
-            <option value="{{ user }}">{{ user }}</option>
-        {% endfor %}
-    </select>
+    <h2 class="mb-4">Dashboard</h2>
 
-    <!-- COPY TO -->
-    <label class="mt-3">Copy To</label>
-    <select name="copy_to" class="form-control">
-        <option value="">None</option>
-        {% for user in users %}
-            <option value="{{ user }}">{{ user }}</option>
-        {% endfor %}
-    </select>
+    <!-- SIGN DOCUMENT -->
+    <div class="card p-3 mb-4">
+        <h5>Upload & Sign Document</h5>
 
-    <button class="btn btn-primary mt-3">Sign Document</button>
+        <form method="POST" enctype="multipart/form-data">
+            <input type="file" name="file" class="form-control mb-2" required>
+            <input type="text" name="comment" class="form-control mb-2" placeholder="Comment">
+            <button class="btn btn-primary">Sign Document</button>
+        </form>
+    </div>
 
-</form>
+    <!-- SIGNED DOCUMENT SECTION -->
+    {% if signed_file %}
+    <div class="card p-3">
+        <h5>Signed Document Ready</h5>
+
+        <!-- DOWNLOAD -->
+        <a href="{{ url_for('download', filename=signed_file) }}" class="btn btn-success mb-3">
+            Download Signed Document
+        </a>
+
+        <hr>
+
+        <!-- FORWARD FORM -->
+        <h6>Forward Document</h6>
+        <form method="POST" action="{{ url_for('forward_document') }}">
+            <input type="hidden" name="file" value="{{ signed_file }}">
+
+            <label class="form-label">Forward To</label>
+            <select name="forward_to" class="form-control mb-2" required>
+                <option value="" disabled selected>Select a recipient...</option>
+                {% for user in users %}
+                    <option value="{{ user[0] }}">{{ user[0] }}</option>
+                {% endfor %}
+            </select>
+
+            <label class="form-label">Copy To (CC)</label>
+            <select name="copy_to" class="form-control mb-2">
+                <option value="">None</option>
+                {% for user in users %}
+                    <option value="{{ user[0] }}">{{ user[0] }}</option>
+                {% endfor %}
+            </select>
+
+            <textarea name="comment" class="form-control mb-2" placeholder="Optional comment for the recipient"></textarea>
+
+            <button class="btn btn-warning">Send</button>
+        </form>
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}
