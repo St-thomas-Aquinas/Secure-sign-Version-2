@@ -15,25 +15,28 @@ from flask import (
     redirect,
     flash,
     session,
-    send_from_directory,
-    url_for
+    send_from_directory
 )
 
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
 
 from cryptography.fernet import Fernet
+
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey
 )
+
 from cryptography.hazmat.primitives import serialization
 
 from twilio.twiml.messaging_response import MessagingResponse
 
-
-# =========================
+# =========================================
 # APP CONFIG
-# =========================
+# =========================================
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "CHANGE_THIS_SECRET")
@@ -44,20 +47,18 @@ SIGNED_FOLDER = "signed"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(SIGNED_FOLDER, exist_ok=True)
 
-
-# =========================
+# =========================================
 # DATABASE
-# =========================
+# =========================================
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def get_db():
     return psycopg2.connect(DATABASE_URL, sslmode="require")
 
-
-# =========================
+# =========================================
 # INIT DB
-# =========================
+# =========================================
 
 def init_db():
     conn = get_db()
@@ -101,14 +102,12 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 with app.app_context():
     init_db()
 
-
-# =========================
+# =========================================
 # HELPERS
-# =========================
+# =========================================
 
 SIGNATURE_MARKER = b"__SIGNATURE_BLOCK__"
 
@@ -120,12 +119,12 @@ def derive_key(password):
 def get_file_hash(data: bytes):
     return hashlib.sha256(data).digest()
 
-
-# =========================
-# USERS
-# =========================
+# =========================================
+# USER KEY MANAGEMENT
+# =========================================
 
 def register_user(username, password):
+
     conn = get_db()
     cur = conn.cursor()
 
@@ -159,8 +158,8 @@ def register_user(username, password):
     conn.commit()
     conn.close()
 
-
 def load_private_key(username, password):
+
     conn = get_db()
     cur = conn.cursor()
 
@@ -176,146 +175,112 @@ def load_private_key(username, password):
 
     return Ed25519PrivateKey.from_private_bytes(private_bytes)
 
-
 def get_public_key(username):
+
     conn = get_db()
     cur = conn.cursor()
 
     cur.execute("SELECT public_key FROM users WHERE username=%s", (username,))
     row = cur.fetchone()
-
     conn.close()
+
+    if not row:
+        raise Exception("Public key not found")
 
     return row[0]
 
-
-def get_users():
-    conn = get_db()
-    cur = conn.cursor()
-
-    cur.execute("SELECT username FROM users")
-    users = cur.fetchall()
-
-    conn.close()
-    return users
-
-
-# =========================
-# SIGN FILE
-# =========================
+# =========================================
+# SIGN FILE (COMMENT RESTORED)
+# =========================================
 
 def sign_file(file_path, username, private_key, comment=""):
+
     with open(file_path, "rb") as f:
         data = f.read()
 
     if SIGNATURE_MARKER in data:
-        original_data, meta = data.split(SIGNATURE_MARKER)
+        original, meta = data.split(SIGNATURE_MARKER)
+        try:
+            metadata = json.loads(meta.decode())
+            signatures = metadata.get("signatures", [])
+        except:
+            signatures = []
     else:
-        original_data = data
+        original = data
+        signatures = []
 
-    file_hash = get_file_hash(original_data)
+    file_hash = get_file_hash(original)
     signature = private_key.sign(file_hash)
 
     entry = {
         "signer": username,
-        "comment": comment,
+        "comment": comment,   # ✅ RESTORED
         "signature": signature.hex(),
         "hash": file_hash.hex(),
         "public_key": get_public_key(username)
     }
 
-    metadata = {"signatures": [entry]}
-    meta_bytes = json.dumps(metadata).encode()
+    signatures.append(entry)
 
-    output = f"signed_{uuid.uuid4().hex}.bin"
-    path = os.path.join(SIGNED_FOLDER, output)
+    metadata = json.dumps({"signatures": signatures}).encode()
 
-    with open(path, "wb") as f:
-        f.write(original_data)
+    output_name = f"signed_{uuid.uuid4().hex}.bin"
+    output_path = os.path.join(SIGNED_FOLDER, output_name)
+
+    with open(output_path, "wb") as f:
+        f.write(original)
         f.write(SIGNATURE_MARKER)
-        f.write(meta_bytes)
+        f.write(metadata)
 
-    return output
+    return output_name
 
-
-# =========================
-# VERIFY
-# =========================
+# =========================================
+# VERIFY FILE
+# =========================================
 
 def verify_file(file_path):
+
     with open(file_path, "rb") as f:
         data = f.read()
 
     if SIGNATURE_MARKER not in data:
-        return False, "No signature found"
-
-    original, meta = data.split(SIGNATURE_MARKER)
+        return False, "No signatures found"
 
     try:
+        original, meta = data.split(SIGNATURE_MARKER)
         metadata = json.loads(meta.decode())
     except:
-        return False, "Corrupted metadata"
+        return False, "Corrupted file"
 
-    results = []
+    signatures = metadata.get("signatures", [])
     current_hash = get_file_hash(original)
 
-    for sig in metadata.get("signatures", []):
+    results = []
 
-        pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(sig["public_key"]))
+    for sig in signatures:
+
+        signer = sig["signer"]
+        comment = sig.get("comment", "")
         signature = bytes.fromhex(sig["signature"])
+        public_key = Ed25519PublicKey.from_public_bytes(
+            bytes.fromhex(sig["public_key"])
+        )
 
         try:
-            pub.verify(signature, current_hash)
-            results.append(f"{sig['signer']} ✔ VALID")
+            public_key.verify(signature, current_hash)
+            results.append(f"{signer}: VALID | {comment}")
         except:
-            results.append(f"{sig['signer']} ❌ INVALID")
+            results.append(f"{signer}: INVALID")
 
     return True, "\n".join(results)
 
-
-# =========================
+# =========================================
 # ROUTES
-# =========================
+# =========================================
 
 @app.route("/")
 def home():
     return render_template("index.html")
-
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if request.method == "POST":
-        register_user(request.form["username"], request.form["password"])
-        return redirect("/login")
-    return render_template("register.html")
-
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-
-        conn = get_db()
-        cur = conn.cursor()
-
-        cur.execute("SELECT password_hash FROM users WHERE username=%s", (username,))
-        row = cur.fetchone()
-        conn.close()
-
-        if row and check_password_hash(row[0], password):
-            session["username"] = username
-            session["password"] = password
-            return redirect("/dashboard")
-
-        flash("Invalid login")
-
-    return render_template("login.html")
-
-
-# =========================
-# DASHBOARD (FIXED + USERS)
-# =========================
 
 @app.route("/dashboard", methods=["GET", "POST"])
 def dashboard():
@@ -325,11 +290,10 @@ def dashboard():
 
     signed_file = None
 
-    users = get_users()
-
     if request.method == "POST":
 
         file = request.files.get("file")
+        comment = request.form.get("comment", "")
 
         if not file or file.filename == "":
             flash("No file selected")
@@ -340,29 +304,11 @@ def dashboard():
 
         private_key = load_private_key(session["username"], session["password"])
 
-        signed_file = sign_file(path, session["username"], private_key)
+        signed_file = sign_file(path, session["username"], private_key, comment)
 
-        flash("Document signed")
+        flash("Document signed successfully")
 
-    return render_template(
-        "dashboard.html",
-        signed_file=signed_file,
-        users=users
-    )
-
-
-# =========================
-# DOWNLOAD
-# =========================
-
-@app.route("/download/<filename>")
-def download(filename):
-    return send_from_directory(SIGNED_FOLDER, filename, as_attachment=True)
-
-
-# =========================
-# VERIFY
-# =========================
+    return render_template("dashboard.html", signed_file=signed_file)
 
 @app.route("/verify", methods=["GET", "POST"])
 def verify():
@@ -373,36 +319,64 @@ def verify():
 
         file = request.files.get("file")
 
-        if file:
-            path = os.path.join(UPLOAD_FOLDER, f"verify_{uuid.uuid4().hex}")
+        if file and file.filename != "":
+            path = os.path.join(UPLOAD_FOLDER, f"verify_{uuid.uuid4().hex}_{file.filename}")
             file.save(path)
 
-            _, result = verify_file(path)
+            valid, result = verify_file(path)
 
     return render_template("verify.html", result=result)
 
-
-# =========================
-# FORWARD (UI ACTION)
-# =========================
-
-@app.route("/forward_document", methods=["POST"])
-def forward_document():
+@app.route("/incoming")
+def incoming():
 
     if "username" not in session:
         return redirect("/login")
 
-    forward_to = request.form.get("forward_to")
-    copy_to = request.form.get("copy_to")
+    conn = get_db()
+    cur = conn.cursor()
 
-    flash(f"Forwarded to {forward_to}, copied to {copy_to}")
+    cur.execute("""
+    SELECT id, document_name, created_by, status
+    FROM documents
+    WHERE current_holder=%s
+    ORDER BY id DESC
+    """, (session["username"],))
 
-    return redirect("/dashboard")
+    docs = cur.fetchall()
+    conn.close()
 
+    return render_template("incoming.html", docs=docs)
 
-# =========================
+@app.route("/sent")
+def sent():
+
+    if "username" not in session:
+        return redirect("/login")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT id, document_name, current_holder, status, step, created_at
+    FROM documents
+    WHERE created_by=%s
+    ORDER BY id DESC
+    """, (session["username"],))
+
+    docs = cur.fetchall()
+    conn.close()
+
+    return render_template("sent.html", docs=docs)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
+# =========================================
 # RUN
-# =========================
+# =========================================
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
