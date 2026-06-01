@@ -95,11 +95,21 @@ def register_user(username, password):
     cur = conn.cursor()
     private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
-    private_bytes = private_key.private_bytes(encoding=serialization.Encoding.Raw, format=serialization.PrivateFormat.Raw, encryption_algorithm=serialization.NoEncryption())
-    public_bytes = public_key.public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
+    private_bytes = private_key.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    public_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw
+    )
     cipher = Fernet(derive_key(password))
     encrypted_private = cipher.encrypt(private_bytes)
-    cur.execute("INSERT INTO users (username, password_hash, public_key, encrypted_private_key) VALUES (%s, %s, %s, %s)", (username, generate_password_hash(password), public_bytes.hex(), encrypted_private.decode()))
+    cur.execute("""
+        INSERT INTO users (username, password_hash, public_key, encrypted_private_key) 
+        VALUES (%s, %s, %s, %s)
+    """, (username, generate_password_hash(password), public_bytes.hex(), encrypted_private.decode()))
     conn.commit()
     conn.close()
 
@@ -109,7 +119,8 @@ def load_private_key(username, password):
     cur.execute("SELECT encrypted_private_key FROM users WHERE username=%s", (username,))
     row = cur.fetchone()
     conn.close()
-    if not row: raise Exception("User not found")
+    if not row:
+        raise Exception("User not found")
     cipher = Fernet(derive_key(password))
     return Ed25519PrivateKey.from_private_bytes(cipher.decrypt(row[0].encode()))
 
@@ -119,40 +130,56 @@ def get_public_key(username):
     cur.execute("SELECT public_key FROM users WHERE username=%s", (username,))
     row = cur.fetchone()
     conn.close()
-    if not row: raise Exception("Public key not found")
+    if not row:
+        raise Exception("Public key not found")
     return row[0]
 
 def sign_file(file_path, username, private_key, comment=""):
     with open(file_path, "rb") as f:
         data = f.read()
+    
     existing_signatures = []
     if SIGNATURE_MARKER in data:
         original_data, metadata_bytes = data.split(SIGNATURE_MARKER)
         try:
             metadata = json.loads(metadata_bytes.decode())
             existing_signatures = metadata.get("signatures", [])
-        except: pass
+        except:
+            pass
     else:
         original_data = data
+    
     file_hash = get_file_hash(original_data)
     signature = private_key.sign(file_hash)
-    signature_entry = {"signer": username, "comment": comment, "signature": signature.hex(), "hash": file_hash.hex(), "public_key": get_public_key(username), "algorithm": "Ed25519"}
+    
+    signature_entry = {
+        "signer": username,
+        "comment": comment,
+        "signature": signature.hex(),
+        "hash": file_hash.hex(),
+        "public_key": get_public_key(username),
+        "algorithm": "Ed25519"
+    }
     existing_signatures.append(signature_entry)
+    
     metadata = {"signatures": existing_signatures}
     metadata_bytes = json.dumps(metadata).encode()
     extension = os.path.splitext(file_path)[1]
     output_name = f"signed_{uuid.uuid4().hex}{extension}"
     output_path = os.path.join(SIGNED_FOLDER, output_name)
+    
     with open(output_path, "wb") as f:
         f.write(original_data)
         f.write(SIGNATURE_MARKER)
         f.write(metadata_bytes)
+    
     app.logger.info(f"Saved signed file: {output_path}")
     return output_name
 
 # =========================================
 # ROUTES
 # =========================================
+
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -164,7 +191,8 @@ def register():
             register_user(request.form["username"], request.form["password"])
             flash("Registration successful")
             return redirect("/login")
-        except Exception as e: flash(str(e))
+        except Exception as e:
+            flash(str(e))
     return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
@@ -188,34 +216,49 @@ def login():
 def dashboard():
     if "username" not in session:
         return redirect("/login")
+    
     signed_file = None
+    
     if request.method == "POST":
         try:
             if "file" not in request.files or request.files["file"].filename == "":
                 flash("Please select a valid file")
                 return redirect("/dashboard")
+            
             file = request.files["file"]
             comment = request.form.get("comment", "")
             path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}_{file.filename}")
             file.save(path)
+            
             private_key = load_private_key(session["username"], session["password"])
             signed_file = sign_file(path, session["username"], private_key, comment)
+            
             conn = get_db()
             cur = conn.cursor()
-            cur.execute("INSERT INTO documents (document_name, stored_file, created_by, current_holder, status, step) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id", (file.filename, signed_file, session["username"], session["username"], "SIGNED", 1))
+            cur.execute("""
+                INSERT INTO documents (document_name, stored_file, created_by, current_holder, status, step) 
+                VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+            """, (file.filename, signed_file, session["username"], session["username"], "SIGNED", 1))
             doc_id = cur.fetchone()[0]
-            cur.execute("INSERT INTO document_history (document_id, signer, comment, action, step) VALUES (%s, %s, %s, %s, %s)", (doc_id, session["username"], comment, "DOCUMENT CREATED", 1))
+            
+            cur.execute("""
+                INSERT INTO document_history (document_id, signer, comment, action, step) 
+                VALUES (%s, %s, %s, %s, %s)
+            """, (doc_id, session["username"], comment, "DOCUMENT CREATED", 1))
+            
             conn.commit()
             conn.close()
             flash("Document signed successfully")
+            
         except Exception as e:
             app.logger.error(f"Sign error: {e}")
             flash(f"Error: {str(e)}")
+    
     return render_template("dashboard.html", signed_file=signed_file)
 
 @app.route("/download/<filename>")
 def download(filename):
-    """Simple, reliable download route"""
+    """Download document as attachment"""
     if "username" not in session:
         return redirect("/login")
     
@@ -226,54 +269,147 @@ def download(filename):
     
     return send_from_directory(SIGNED_FOLDER, filename, as_attachment=True)
 
-# =========================================
-# RESTORED NAVIGATION ROUTES
-# =========================================
 @app.route("/incoming")
 def incoming():
     if "username" not in session:
         return redirect("/login")
+    
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT id, document_name, created_by, status FROM documents WHERE current_holder=%s ORDER BY id DESC", (session["username"],))
+    cur.execute("""
+        SELECT id, document_name, created_by, status 
+        FROM documents 
+        WHERE current_holder=%s 
+        ORDER BY id DESC
+    """, (session["username"],))
     docs = cur.fetchall()
     conn.close()
+    
     return render_template("incoming.html", docs=docs)
 
 @app.route("/sent")
 def sent():
     if "username" not in session:
         return redirect("/login")
+    
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT id, document_name, current_holder, status, step, created_at FROM documents WHERE created_by=%s ORDER BY id DESC", (session["username"],))
+    cur.execute("""
+        SELECT id, document_name, current_holder, status, step, created_at 
+        FROM documents 
+        WHERE created_by=%s 
+        ORDER BY id DESC
+    """, (session["username"],))
     docs = cur.fetchall()
     conn.close()
+    
     return render_template("sent.html", docs=docs)
 
-@app.route("/document/<int:doc_id>")
+@app.route("/document/<int:doc_id>", methods=["GET"])
 def document_details(doc_id):
     if "username" not in session:
         return redirect("/login")
+    
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT id, document_name, stored_file, created_by, current_holder, status, step, created_at FROM documents WHERE id=%s", (doc_id,))
+    
+    # Get document details
+    cur.execute("""
+        SELECT id, document_name, stored_file, created_by, current_holder, status, step, created_at 
+        FROM documents 
+        WHERE id=%s
+    """, (doc_id,))
     document = cur.fetchone()
-    cur.execute("SELECT signer, comment, action, step, signed_at FROM document_history WHERE document_id=%s ORDER BY id ASC", (doc_id,))
+    
+    # Get history (4 columns to match template)
+    cur.execute("""
+        SELECT signer, comment, action, signed_at 
+        FROM document_history 
+        WHERE document_id=%s 
+        ORDER BY id ASC
+    """, (doc_id,))
     history = cur.fetchall()
+    
+    # Get users for dropdown (exclude current user)
+    cur.execute("SELECT username FROM users WHERE username != %s", (session["username"],))
+    users = cur.fetchall()
+    
     conn.close()
+    
     if not document:
         flash("Document not found")
         return redirect("/incoming")
-    return render_template("document_details.html", document=document, history=history)
+    
+    return render_template("document_details.html", document=document, history=history, users=users)
+
+@app.route("/forward/<int:doc_id>", methods=["POST"])
+def forward_document(doc_id):
+    if "username" not in session:
+        return redirect("/login")
+
+    forward_to = request.form.get("forward_to")
+    copy_to = request.form.get("copy_to", "")
+    comment = request.form.get("comment", "")
+
+    if not forward_to:
+        flash("Please select a recipient")
+        return redirect(f"/document/{doc_id}")
+
+    conn = get_db()
+    cur = conn.cursor()
+    
+    try:
+        # Get current document info
+        cur.execute("SELECT stored_file, step FROM documents WHERE id=%s", (doc_id,))
+        row = cur.fetchone()
+        
+        if not row:
+            flash("Document not found")
+            return redirect("/incoming")
+
+        stored_file, current_step = row
+        new_step = current_step + 1
+
+        # Re-sign the document for forwarding
+        file_path = os.path.join(SIGNED_FOLDER, stored_file)
+        if not os.path.exists(file_path):
+            raise Exception("Source file not found")
+
+        private_key = load_private_key(session["username"], session["password"])
+        new_file = sign_file(file_path, session["username"], private_key, comment)
+
+        # Update document to new holder
+        cur.execute("""
+            UPDATE documents 
+            SET stored_file=%s, current_holder=%s, status=%s, step=%s 
+            WHERE id=%s
+        """, (new_file, forward_to, f"FORWARDED TO {forward_to}", new_step, doc_id))
+
+        # Log forward action
+        cur.execute("""
+            INSERT INTO document_history (document_id, signer, comment, action, step)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (doc_id, session["username"], comment, f"FORWARDED TO {forward_to}", new_step))
+
+        # Log CC if provided
+        if copy_to and copy_to != "":
+            cur.execute("""
+                INSERT INTO document_history (document_id, signer, comment, action, step)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (doc_id, session["username"], comment, f"CC TO {copy_to}", new_step))
+
+        conn.commit()
+        flash("Document forwarded successfully!")
+        
+    except Exception as e:
+        conn.rollback()
+        app.logger.error(f"Forward error: {e}")
+        flash(f"Error forwarding document: {str(e)}")
+    
+    finally:
+        conn.close()
+
+    return redirect("/incoming")
 
 @app.route("/logout")
-def logout():
-    session.clear()
-    return redirect("/login")
-
-# =========================================
-# START
-# =========================================
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+def logout
