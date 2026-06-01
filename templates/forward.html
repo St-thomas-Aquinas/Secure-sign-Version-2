@@ -5,47 +5,24 @@
 <h3>📨 Forward Document</h3>
 
 <div class="card p-4">
-
     <form method="POST">
-
         <div class="mb-3">
-
-            <label class="form-label">
-                Forward To
-            </label>
-
-            <input
-                type="text"
-                name="next_user"
-                class="form-control"
-                required
-            >
-
+            <label class="form-label">Forward To</label>
+            <select name="next_user" class="form-control" required>
+                <option value="" disabled selected>Select a recipient...</option>
+                {% for user in users %}
+                    <option value="{{ user[0] }}">{{ user[0] }}</option>
+                {% endfor %}
+            </select>
         </div>
 
         <div class="mb-3">
-
-            <label class="form-label">
-                Comment
-            </label>
-
-            <textarea
-                name="comment"
-                class="form-control"
-                rows="4"
-            ></textarea>
-
+            <label class="form-label">Comment</label>
+            <textarea name="comment" class="form-control" rows="4"></textarea>
         </div>
 
-        <button
-            type="submit"
-            class="btn btn-primary"
-        >
-            Forward Document
-        </button>
-
+        <button type="submit" class="btn btn-primary">Forward Document</button>
     </form>
-
 </div>
 
 {% endblock %}
