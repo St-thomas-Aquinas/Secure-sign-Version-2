@@ -313,7 +313,6 @@ def document_details(doc_id):
     conn = get_db()
     cur = conn.cursor()
     
-    # Get document details
     cur.execute("""
         SELECT id, document_name, stored_file, created_by, current_holder, status, step, created_at 
         FROM documents 
@@ -321,7 +320,6 @@ def document_details(doc_id):
     """, (doc_id,))
     document = cur.fetchone()
     
-    # Get history (4 columns to match template)
     cur.execute("""
         SELECT signer, comment, action, signed_at 
         FROM document_history 
@@ -330,7 +328,6 @@ def document_details(doc_id):
     """, (doc_id,))
     history = cur.fetchall()
     
-    # Get users for dropdown (exclude current user)
     cur.execute("SELECT username FROM users WHERE username != %s", (session["username"],))
     users = cur.fetchall()
     
@@ -359,7 +356,6 @@ def forward_document(doc_id):
     cur = conn.cursor()
     
     try:
-        # Get current document info
         cur.execute("SELECT stored_file, step FROM documents WHERE id=%s", (doc_id,))
         row = cur.fetchone()
         
@@ -370,7 +366,6 @@ def forward_document(doc_id):
         stored_file, current_step = row
         new_step = current_step + 1
 
-        # Re-sign the document for forwarding
         file_path = os.path.join(SIGNED_FOLDER, stored_file)
         if not os.path.exists(file_path):
             raise Exception("Source file not found")
@@ -378,20 +373,17 @@ def forward_document(doc_id):
         private_key = load_private_key(session["username"], session["password"])
         new_file = sign_file(file_path, session["username"], private_key, comment)
 
-        # Update document to new holder
         cur.execute("""
             UPDATE documents 
             SET stored_file=%s, current_holder=%s, status=%s, step=%s 
             WHERE id=%s
         """, (new_file, forward_to, f"FORWARDED TO {forward_to}", new_step, doc_id))
 
-        # Log forward action
         cur.execute("""
             INSERT INTO document_history (document_id, signer, comment, action, step)
             VALUES (%s, %s, %s, %s, %s)
         """, (doc_id, session["username"], comment, f"FORWARDED TO {forward_to}", new_step))
 
-        # Log CC if provided
         if copy_to and copy_to != "":
             cur.execute("""
                 INSERT INTO document_history (document_id, signer, comment, action, step)
@@ -411,5 +403,14 @@ def forward_document(doc_id):
 
     return redirect("/incoming")
 
+# ⚠️ THIS IS THE LINE THAT CAUSED THE ERROR. MAKE SURE IT HAS ():
 @app.route("/logout")
-def logout
+def logout():
+    session.clear()
+    return redirect("/login")
+
+# =========================================
+# START
+# =========================================
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
