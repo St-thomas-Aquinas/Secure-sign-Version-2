@@ -12,7 +12,11 @@
     <p><strong>Workflow Step:</strong> {{ document[6] }}</p>
 
     <div class="d-flex gap-2 mb-4">
-        <a href="/view/{{ document[2] }}" target="_blank" class="btn btn-info">👁️ View Document</a>
+        {% if document[2].lower().endswith(('.xlsx', '.xls', '.csv')) %}
+            <button onclick="viewSpreadsheet('{{ document[2] }}')" class="btn btn-info">👁️ View Document</button>
+        {% else %}
+            <a href="/view/{{ document[2] }}" target="_blank" class="btn btn-info">👁️ View Document</a>
+        {% endif %}
         <a href="/download/{{ document[2] }}" class="btn btn-success">⬇️ Download Document</a>
     </div>
 
@@ -61,5 +65,51 @@
         {% endfor %}
     </tbody>
 </table>
+
+<!-- SPREADSHEET VIEWER MODAL -->
+<div class="modal fade" id="spreadsheetModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">📊 Document Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow: auto;">
+                <div id="spreadsheet-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SheetJS Library -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+function viewSpreadsheet(filename) {
+    fetch('/view/' + filename)
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to load file');
+            return res.arrayBuffer();
+        })
+        .then(data => {
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const htmlTable = XLSX.utils.sheet_to_html(firstSheet);
+            
+            document.getElementById('spreadsheet-container').innerHTML = htmlTable;
+            
+            // Style the generated table
+            const table = document.getElementById('spreadsheet-container').querySelector('table');
+            if (table) {
+                table.classList.add('table', 'table-bordered', 'table-striped');
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('spreadsheetModal'));
+            modal.show();
+        })
+        .catch(err => {
+            alert('Error viewing document: ' + err.message);
+        });
+}
+</script>
 
 {% endblock %}
