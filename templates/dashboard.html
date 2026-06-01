@@ -4,57 +4,95 @@
 
 <div class="container mt-4">
 
-    <h2>Dashboard</h2>
+    <h2 class="mb-4">Dashboard</h2>
 
-    <!-- SIGN -->
-    <div class="card p-3 mb-4">
-        <h5>Sign Document</h5>
+    <!-- =========================
+         SIGN DOCUMENT
+    ========================== -->
+    <div class="card shadow p-4 mb-4">
+
+        <h4>Sign New Document</h4>
 
         <form method="POST" enctype="multipart/form-data">
-            <input type="file" name="file" class="form-control mb-2" required>
-            <button class="btn btn-primary">Sign</button>
+
+            <div class="mb-3">
+                <input type="file" name="file" class="form-control" required>
+            </div>
+
+            <div class="mb-3">
+                <textarea name="comment" class="form-control" placeholder="Add comment (optional)"></textarea>
+            </div>
+
+            <button class="btn btn-primary">
+                Sign Document
+            </button>
+
         </form>
-    </div>
 
-    {% if signed_file %}
-
-    <div class="card p-3">
-
-        <h5>Signed Document</h5>
-
-        <a href="{{ url_for('download', filename=signed_file) }}"
-           class="btn btn-success mb-3">
-            Download
-        </a>
+        {% if signed_file %}
 
         <hr>
 
-        <h5>Forward / Copy</h5>
+        <div class="alert alert-success">
+            Document signed successfully!
+        </div>
 
-        <form method="POST" action="/forward_document">
+        <a href="{{ url_for('download', filename=signed_file) }}" class="btn btn-success">
+            Download Signed Document
+        </a>
 
-            <label>Forward To</label>
-            <select name="forward_to" class="form-control mb-2">
-                {% for u in users %}
-                    <option value="{{ u[0] }}">{{ u[0] }}</option>
-                {% endfor %}
-            </select>
+        {% endif %}
 
-            <label>Copy To</label>
-            <select name="copy_to" class="form-control mb-2">
-                <option value="">None</option>
-                {% for u in users %}
-                    <option value="{{ u[0] }}">{{ u[0] }}</option>
-                {% endfor %}
-            </select>
+    </div>
 
-            <button class="btn btn-warning">Send</button>
+
+    <!-- =========================
+         FORWARD DOCUMENT
+    ========================== -->
+    <div class="card shadow p-4">
+
+        <h4>Forward / Copy Document</h4>
+
+        <form method="POST" action="{{ url_for('forward', doc_id=1) }}">
+
+            <!-- Forward To -->
+            <div class="mb-3">
+                <label>Forward To</label>
+                <select name="next_user" class="form-control" required>
+                    <option value="">Select user</option>
+
+                    {% for user in users %}
+                        <option value="{{ user[0] }}">{{ user[0] }}</option>
+                    {% endfor %}
+
+                </select>
+            </div>
+
+            <!-- Copy To -->
+            <div class="mb-3">
+                <label>Copy To</label>
+                <select name="copy_user" class="form-control">
+                    <option value="">Select user (optional)</option>
+
+                    {% for user in users %}
+                        <option value="{{ user[0] }}">{{ user[0] }}</option>
+                    {% endfor %}
+
+                </select>
+            </div>
+
+            <!-- Comment -->
+            <div class="mb-3">
+                <textarea name="comment" class="form-control" placeholder="Comment"></textarea>
+            </div>
+
+            <button class="btn btn-warning">
+                Forward Document
+            </button>
 
         </form>
 
     </div>
-
-    {% endif %}
 
 </div>
 
