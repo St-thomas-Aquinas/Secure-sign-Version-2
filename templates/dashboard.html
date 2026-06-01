@@ -2,57 +2,59 @@
 
 {% block content %}
 
-<div class="container mt-5">
+<div class="container mt-4">
 
-    <div class="card shadow-lg p-4">
+    <h2>Dashboard</h2>
 
-        <h3 class="mb-3">📄 Welcome {{ session.username }}</h3>
+    <!-- SIGN -->
+    <div class="card p-3 mb-4">
+        <h5>Sign Document</h5>
 
-        <!-- FLASH MESSAGES -->
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-info">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <!-- SIGN FORM -->
         <form method="POST" enctype="multipart/form-data">
+            <input type="file" name="file" class="form-control mb-2" required>
+            <button class="btn btn-primary">Sign</button>
+        </form>
+    </div>
 
-            <div class="mb-3">
-                <label class="form-label">Upload Document</label>
-                <input type="file" name="file" class="form-control" required>
-            </div>
+    {% if signed_file %}
 
-            <div class="mb-3">
-                <label class="form-label">Comment (optional)</label>
-                <textarea name="comment" class="form-control"></textarea>
-            </div>
+    <div class="card p-3">
 
-            <button type="submit" class="btn btn-success w-100">
-                 Sign Document
-            </button>
+        <h5>Signed Document</h5>
+
+        <a href="{{ url_for('download', filename=signed_file) }}"
+           class="btn btn-success mb-3">
+            Download
+        </a>
+
+        <hr>
+
+        <h5>Forward / Copy</h5>
+
+        <form method="POST" action="/forward_document">
+
+            <label>Forward To</label>
+            <select name="forward_to" class="form-control mb-2">
+                {% for u in users %}
+                    <option value="{{ u[0] }}">{{ u[0] }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Copy To</label>
+            <select name="copy_to" class="form-control mb-2">
+                <option value="">None</option>
+                {% for u in users %}
+                    <option value="{{ u[0] }}">{{ u[0] }}</option>
+                {% endfor %}
+            </select>
+
+            <button class="btn btn-warning">Send</button>
 
         </form>
 
-        <!-- DOWNLOAD -->
-        {% if signed_file %}
-
-            <hr>
-
-            <div class="alert alert-success mt-3">
-                 Document signed successfully
-            </div>
-
-            <a href="{{ url_for('download', filename=signed_file) }}"
-               class="btn btn-primary w-100">
-                ⬇ Download Signed Document
-            </a>
-
-        {% endif %}
-
     </div>
+
+    {% endif %}
 
 </div>
 
