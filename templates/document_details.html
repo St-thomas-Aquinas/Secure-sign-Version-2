@@ -1,20 +1,40 @@
-@app.route("/document/<int:doc_id>")
-def document_details(doc_id):
-    if "username" not in session:
-        return redirect("/login")
-    
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT id, document_name, stored_file, created_by, current_holder, status, step, created_at FROM documents WHERE id=%s", (doc_id,))
-    document = cur.fetchone()
-    
-    # ✅ Changed to 4 columns to match your template exactly
-    cur.execute("SELECT signer, comment, action, signed_at FROM document_history WHERE document_id=%s ORDER BY id ASC", (doc_id,))
-    history = cur.fetchall()
-    
-    conn.close()
-    if not document:
-        flash("Document not found")
-        return redirect("/incoming")
-        
-    return render_template("document_details.html", document=document, history=history)
+{% extends "base.html" %}
+
+{% block content %}
+
+<h3>📄 Document Details</h3>
+
+<div class="card p-3 mb-4">
+    <p><strong>Document:</strong> {{ document[1] }}</p>
+    <p><strong>Created By:</strong> {{ document[3] }}</p>
+    <p><strong>Current Holder:</strong> {{ document[4] }}</p>
+    <p><strong>Status:</strong> {{ document[5] }}</p>
+
+    <a href="/download/{{ document[2] }}" class="btn btn-success btn-sm">
+        Download Document
+    </a>
+</div>
+
+<h4>🕒 Workflow History</h4>
+<table class="table table-bordered">
+    <thead class="table-dark">
+        <tr>
+            <th>Signer</th>
+            <th>Comment</th>
+            <th>Action</th>
+            <th>Time</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for h in history %}
+        <tr>
+            <td>{{ h[0] }}</td>
+            <td>{{ h[1] }}</td>
+            <td>{{ h[2] }}</td>
+            <td>{{ h[3] }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
