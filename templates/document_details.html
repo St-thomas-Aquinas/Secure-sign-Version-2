@@ -1,33 +1,20 @@
-{% extends "base.html" %}
-
-{% block content %}
-<div class="container mt-5">
-    <h2 class="mb-4">📝 Document Signing</h2>
-
-    <!-- UPLOAD & SIGN -->
-    <div class="card p-4 mb-4">
-        <form method="POST" enctype="multipart/form-data">
-            <div class="mb-3">
-                <label class="form-label">Select Document</label>
-                <input type="file" name="file" class="form-control" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Comment (Optional)</label>
-                <input type="text" name="comment" class="form-control" placeholder="e.g., Reviewed and approved">
-            </div>
-            <button type="submit" class="btn btn-primary">🔐 Sign & Save</button>
-        </form>
-    </div>
-
-    <!-- DOWNLOAD SECTION -->
-    {% if signed_file %}
-    <div class="card p-4 bg-light">
-        <h4>✅ Document Signed Successfully</h4>
-        <p class="text-muted">Filename: <code>{{ signed_file }}</code></p>
-        <a href="{{ url_for('download', filename=signed_file) }}" class="btn btn-success btn-lg">
-            ⬇️ Download Signed Document
-        </a>
-    </div>
-    {% endif %}
-</div>
-{% endblock %}
+@app.route("/document/<int:doc_id>")
+def document_details(doc_id):
+    if "username" not in session:
+        return redirect("/login")
+    
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, document_name, stored_file, created_by, current_holder, status, step, created_at FROM documents WHERE id=%s", (doc_id,))
+    document = cur.fetchone()
+    
+    # ✅ Changed to 4 columns to match your template exactly
+    cur.execute("SELECT signer, comment, action, signed_at FROM document_history WHERE document_id=%s ORDER BY id ASC", (doc_id,))
+    history = cur.fetchall()
+    
+    conn.close()
+    if not document:
+        flash("Document not found")
+        return redirect("/incoming")
+        
+    return render_template("document_details.html", document=document, history=history)
