@@ -226,6 +226,47 @@ def download(filename):
     
     return send_from_directory(SIGNED_FOLDER, filename, as_attachment=True)
 
+# =========================================
+# RESTORED NAVIGATION ROUTES
+# =========================================
+@app.route("/incoming")
+def incoming():
+    if "username" not in session:
+        return redirect("/login")
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, document_name, created_by, status FROM documents WHERE current_holder=%s ORDER BY id DESC", (session["username"],))
+    docs = cur.fetchall()
+    conn.close()
+    return render_template("incoming.html", docs=docs)
+
+@app.route("/sent")
+def sent():
+    if "username" not in session:
+        return redirect("/login")
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, document_name, current_holder, status, step, created_at FROM documents WHERE created_by=%s ORDER BY id DESC", (session["username"],))
+    docs = cur.fetchall()
+    conn.close()
+    return render_template("sent.html", docs=docs)
+
+@app.route("/document/<int:doc_id>")
+def document_details(doc_id):
+    if "username" not in session:
+        return redirect("/login")
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, document_name, stored_file, created_by, current_holder, status, step, created_at FROM documents WHERE id=%s", (doc_id,))
+    document = cur.fetchone()
+    cur.execute("SELECT signer, comment, action, step, signed_at FROM document_history WHERE document_id=%s ORDER BY id ASC", (doc_id,))
+    history = cur.fetchall()
+    conn.close()
+    if not document:
+        flash("Document not found")
+        return redirect("/incoming")
+    return render_template("document_details.html", document=document, history=history)
+
 @app.route("/logout")
 def logout():
     session.clear()
