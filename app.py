@@ -5,6 +5,7 @@ import base64
 import json
 import psycopg2
 import requests
+import logging
 
 from requests.auth import HTTPBasicAuth
 
@@ -16,7 +17,8 @@ from flask import (
     flash,
     session,
     send_from_directory,
-    url_for
+    url_for,
+    abort
 )
 
 from werkzeug.security import (
@@ -46,11 +48,29 @@ app.secret_key = os.environ.get(
     "CHANGE_THIS_SECRET"
 )
 
-UPLOAD_FOLDER = "uploads"
-SIGNED_FOLDER = "signed"
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# =========================================
+# FILE STORAGE CONFIG (ABSOLUTE PATHS)
+# =========================================
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+SIGNED_FOLDER = os.path.join(BASE_DIR, "signed")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(SIGNED_FOLDER, exist_ok=True)
+
+# Ensure proper permissions (especially for cloud deployments)
+try:
+    os.chmod(UPLOAD_FOLDER, 0o755)
+    os.chmod(SIGNED_FOLDER, 0o755)
+except:
+    pass  # May fail on some platforms, continue anyway
 
 # =========================================
 # TWILIO CONFIG
@@ -257,6 +277,7 @@ def sign_file(file_path, username, private_key, comment=""):
         f.write(SIGNATURE_MARKER)
         f.write(metadata_bytes)
 
+    app.logger.info(f"Signed file saved to: {output_path}")
     return output_name
 
 def verify_file(file_path):
@@ -357,6 +378,7 @@ def dashboard():
             comment = request.form.get("comment", "")
             path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}_{file.filename}")
             file.save(path)
+            app.logger.info(f"File uploaded to: {path}")
 
             private_key = load_private_key(session["username"], session["password"])
             signed_file = sign_file(path, session["username"], private_key, comment)
@@ -376,17 +398,104 @@ def dashboard():
             conn.close()
             flash("Document signed successfully")
         except Exception as e:
+            app.logger.error(f"Dashboard error: {str(e)}")
             flash(f"Error: {str(e)}")
 
     return render_template("dashboard.html", signed_file=signed_file, users=users)
 
+# =========================================
+# VIEW & DOWNLOAD (WITH DEBUG LOGGING)
+# =========================================
+
 @app.route("/view/<filename>")
 def view_document(filename):
+    """View document inline (for PDFs, images, spreadsheets via JS)"""
+    if "username" not in session:
+        return redirect("/login")
+    
+    file_path = os.path.join(SIGNED_FOLDER, filename)
+    
+    # Debug logging
+    app.logger.info(f"=== VIEW REQUEST ===")
+    app.logger.info(f"Requested filename: {filename}")
+    app.logger.info(f"Resolved path: {file_path}")
+    app.logger.info(f"File exists: {os.path.exists(file_path)}")
+    app.logger.info(f"SIGNED_FOLDER absolute: {os.path.abspath(SIGNED_FOLDER)}")
+    
+    if not os.path.exists(file_path):
+        try:
+            files = os.listdir(SIGNED_FOLDER)
+            app.logger.error(f"Available files in signed/: {files}")
+        except Exception as e:
+            app.logger.error(f"Cannot list folder: {e}")
+        abort(404, description=f"File '{filename}' not found on server.")
+    
     return send_from_directory(SIGNED_FOLDER, filename, as_attachment=False)
+
 
 @app.route("/download/<filename>")
 def download(filename):
+    """Download document as attachment"""
+    if "username" not in session:
+        return redirect("/login")
+    
+    file_path = os.path.join(SIGNED_FOLDER, filename)
+    
+    # Debug logging
+    app.logger.info(f"=== DOWNLOAD REQUEST ===")
+    app.logger.info(f"Requested filename: {filename}")
+    app.logger.info(f"Resolved path: {file_path}")
+    app.logger.info(f"File exists: {os.path.exists(file_path)}")
+    
+    if not os.path.exists(file_path):
+        try:
+            files = os.listdir(SIGNED_FOLDER)
+            app.logger.error(f"Available files in signed/: {files}")
+        except Exception as e:
+            app.logger.error(f"Cannot list folder: {e}")
+        abort(404, description=f"File '{filename}' not found on server.")
+    
     return send_from_directory(SIGNED_FOLDER, filename, as_attachment=True)
+
+
+# =========================================
+# DEBUG ROUTE (REMOVE IN PRODUCTION)
+# =========================================
+
+@app.route("/debug/files")
+def debug_files():
+    """Temporary debug route to inspect file system - REMOVE BEFORE PRODUCTION"""
+    if "username" not in session:
+        return redirect("/login")
+    
+    try:
+        signed_files = os.listdir(SIGNED_FOLDER) if os.path.exists(SIGNED_FOLDER) else []
+        upload_files = os.listdir(UPLOAD_FOLDER) if os.path.exists(UPLOAD_FOLDER) else []
+        return f"""
+        <html>
+        <head><title>🔍 Debug: File System</title></head>
+        <body style="font-family: monospace; padding: 20px;">
+            <h3>📁 Debug: File System</h3>
+            <p><strong>BASE_DIR:</strong> {BASE_DIR}</p>
+            <p><strong>SIGNED_FOLDER:</strong> {SIGNED_FOLDER}</p>
+            <p><strong>Files in signed/:</strong></p>
+            <ul>{''.join(f'<li>{f}</li>' for f in signed_files)}</ul>
+            <hr>
+            <p><strong>UPLOAD_FOLDER:</strong> {UPLOAD_FOLDER}</p>
+            <p><strong>Files in uploads/:</strong></p>
+            <ul>{''.join(f'<li>{f}</li>' for f in upload_files)}</ul>
+            <hr>
+            <p style="color: red;"><strong>⚠️ REMOVE THIS ROUTE IN PRODUCTION!</strong></p>
+            <a href="/dashboard">← Back to Dashboard</a>
+        </body>
+        </html>
+        """
+    except Exception as e:
+        return f"<pre>Error: {str(e)}</pre><br><a href='/dashboard'>Back</a>"
+
+# =========================================
+# DOCUMENT DETAILS (WITH USER DROPDOWN)
+# =========================================
 
 @app.route("/document/<int:doc_id>")
 def document_details(doc_id):
@@ -411,7 +520,15 @@ def document_details(doc_id):
     users = cur.fetchall()
     conn.close()
 
+    if not document:
+        flash("Document not found")
+        return redirect("/incoming")
+
     return render_template("document_details.html", document=document, history=history, users=users)
+
+# =========================================
+# FORWARD DOCUMENT (WITH DROPDOWN)
+# =========================================
 
 @app.route("/forward/<int:doc_id>", methods=["GET", "POST"])
 def forward(doc_id):
@@ -436,6 +553,11 @@ def forward(doc_id):
             new_step = current_step + 1
 
             file_path = os.path.join(SIGNED_FOLDER, stored_file)
+            app.logger.info(f"Forwarding file: {file_path}")
+            
+            if not os.path.exists(file_path):
+                raise Exception(f"Source file not found: {file_path}")
+            
             private_key = load_private_key(session["username"], session["password"])
             new_file = sign_file(file_path, session["username"], private_key, comment)
 
@@ -453,12 +575,17 @@ def forward(doc_id):
             return redirect("/incoming")
         except Exception as e:
             conn.rollback()
+            app.logger.error(f"Forward error: {str(e)}")
             flash(f"Forward error: {str(e)}")
 
     cur.execute("SELECT username FROM users WHERE username != %s", (session["username"],))
     users = cur.fetchall()
     conn.close()
     return render_template("forward.html", doc_id=doc_id, users=users)
+
+# =========================================
+# INCOMING / SENT DOCUMENTS
+# =========================================
 
 @app.route("/incoming")
 def incoming():
@@ -488,6 +615,10 @@ def sent():
     conn.close()
     return render_template("sent.html", docs=docs)
 
+# =========================================
+# APPROVE DOCUMENT
+# =========================================
+
 @app.route("/approve/<int:doc_id>")
 def approve_document(doc_id):
     if "username" not in session:
@@ -496,6 +627,9 @@ def approve_document(doc_id):
     cur = conn.cursor()
     cur.execute("SELECT step FROM documents WHERE id=%s", (doc_id,))
     row = cur.fetchone()
+    if not row:
+        flash("Document not found")
+        return redirect("/incoming")
     current_step = row[0]
     cur.execute("UPDATE documents SET status=%s WHERE id=%s", ("APPROVED", doc_id))
     cur.execute("""
@@ -506,6 +640,10 @@ def approve_document(doc_id):
     conn.close()
     flash("Document approved successfully")
     return redirect("/incoming")
+
+# =========================================
+# VERIFY WEB
+# =========================================
 
 @app.route("/verify", methods=["GET", "POST"])
 def verify():
@@ -526,6 +664,10 @@ def verify():
             result = f"Error: {str(e)}"
     return render_template("verify.html", result=result)
 
+# =========================================
+# WHATSAPP BOT
+# =========================================
+
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
     resp = MessagingResponse()
@@ -544,10 +686,21 @@ def whatsapp():
         resp.message(str(e))
     return str(resp)
 
+# =========================================
+# LOGOUT
+# =========================================
+
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/login")
 
+# =========================================
+# START
+# =========================================
+
 if __name__ == "__main__":
+    app.logger.info(f"Starting app with BASE_DIR={BASE_DIR}")
+    app.logger.info(f"UPLOAD_FOLDER={UPLOAD_FOLDER}")
+    app.logger.info(f"SIGNED_FOLDER={SIGNED_FOLDER}")
     app.run(debug=True, host="0.0.0.0", port=5000)
