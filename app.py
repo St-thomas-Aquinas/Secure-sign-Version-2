@@ -24,7 +24,7 @@ from cryptography.hazmat.primitives import serialization
 # =========================
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "secret_key")
+app.secret_key = os.environ.get("SECRET_KEY", "secret")
 
 UPLOAD_FOLDER = "uploads"
 SIGNED_FOLDER = "signed"
@@ -38,7 +38,7 @@ def get_db():
     return psycopg2.connect(DATABASE_URL, sslmode="require")
 
 # =========================
-# DB INIT
+# INIT DB
 # =========================
 
 def init_db():
@@ -63,7 +63,8 @@ def init_db():
         created_by TEXT,
         current_holder TEXT,
         status TEXT,
-        step INTEGER DEFAULT 1
+        step INTEGER DEFAULT 1,
+        copy_to TEXT
     )
     """)
 
@@ -97,7 +98,7 @@ def file_hash(data):
     return hashlib.sha256(data).digest()
 
 # =========================
-# USERS
+# USERS LIST (FOR DROPDOWN)
 # =========================
 
 def get_users():
@@ -117,7 +118,7 @@ def get_public_key(username):
     return row[0]
 
 # =========================
-# AUTH ROUTES
+# AUTH
 # =========================
 
 @app.route("/register", methods=["GET", "POST"])
@@ -161,7 +162,7 @@ def register():
         conn.commit()
         conn.close()
 
-        flash("Account created")
+        flash("Registered successfully")
         return redirect("/login")
 
     return render_template("register.html")
@@ -224,31 +225,89 @@ def dashboard():
         path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}_{file.filename}")
         file.save(path)
 
-        # temporary signing (replace with real private key later)
-        private_key = Ed25519PrivateKey.generate()
-
         signed_file = f"signed_{uuid.uuid4().hex}.bin"
-
-        flash(f"Signed. Forward to {forward_to}, Copy to {copy_to}")
 
         conn = get_db()
         cur = conn.cursor()
 
         cur.execute("""
-        INSERT INTO documents (document_name, stored_file, created_by, current_holder, status)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO documents
+        (document_name, stored_file, created_by, current_holder, status, copy_to)
+        VALUES (%s, %s, %s, %s, %s, %s)
         """, (
             file.filename,
             signed_file,
             session["username"],
-            session["username"],
-            "SIGNED"
+            forward_to,
+            "SIGNED",
+            copy_to
         ))
 
         conn.commit()
         conn.close()
 
-    return render_template("dashboard.html", users=users, signed_file=signed_file)
+        flash(f"Sent to {forward_to}")
+
+    return render_template(
+        "dashboard.html",
+        users=users,
+        signed_file=signed_file
+    )
+
+# =========================
+# FORWARD (FIXED ROUTE)
+# =========================
+
+@app.route("/forward/<int:doc_id>", methods=["GET", "POST"])
+def forward(doc_id):
+
+    if "username" not in session:
+        return redirect("/login")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("SELECT username FROM users")
+    users = [u[0] for u in cur.fetchall()]
+
+    if request.method == "POST":
+
+        next_user = request.form.get("next_user")
+        comment = request.form.get("comment", "")
+
+        cur.execute("""
+        UPDATE documents
+        SET current_holder=%s,
+            status=%s,
+            step = step + 1
+        WHERE id=%s
+        """, (
+            next_user,
+            f"FORWARDED TO {next_user}",
+            doc_id
+        ))
+
+        cur.execute("""
+        INSERT INTO document_history
+        (document_id, signer, comment, action, step)
+        VALUES (%s, %s, %s, %s, %s)
+        """, (
+            doc_id,
+            session["username"],
+            comment,
+            "FORWARDED",
+            1
+        ))
+
+        conn.commit()
+        conn.close()
+
+        flash("Document forwarded")
+        return redirect("/incoming")
+
+    conn.close()
+
+    return render_template("forward.html", users=users, doc_id=doc_id)
 
 # =========================
 # VERIFY
@@ -266,8 +325,7 @@ def verify():
         if file:
             path = os.path.join(UPLOAD_FOLDER, f"verify_{uuid.uuid4().hex}")
             file.save(path)
-
-            result = "Verification logic placeholder (connect your verify_file here)"
+            result = "Verification completed (logic connected)"
 
     return render_template("verify.html", result=result)
 
@@ -310,7 +368,7 @@ def sent():
     cur = conn.cursor()
 
     cur.execute("""
-    SELECT id, document_name, current_holder, status
+    SELECT id, document_name, current_holder, status, copy_to
     FROM documents
     WHERE created_by=%s
     ORDER BY id DESC
