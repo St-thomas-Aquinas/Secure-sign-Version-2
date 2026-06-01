@@ -1,115 +1,33 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">📝 Document Signing</h2>
 
-<h3>📄 Document Details</h3>
-
-<div class="card p-3 mb-4">
-    <p><strong>Document:</strong> {{ document[1] }}</p>
-    <p><strong>Created By:</strong> {{ document[3] }}</p>
-    <p><strong>Current Holder:</strong> {{ document[4] }}</p>
-    <p><strong>Status:</strong> {{ document[5] }}</p>
-    <p><strong>Workflow Step:</strong> {{ document[6] }}</p>
-
-    <div class="d-flex gap-2 mb-4">
-        {% if document[2].lower().endswith(('.xlsx', '.xls', '.csv')) %}
-            <button onclick="viewSpreadsheet('{{ document[2] }}')" class="btn btn-info">👁️ View Document</button>
-        {% else %}
-            <a href="/view/{{ document[2] }}" target="_blank" class="btn btn-info">👁️ View Document</a>
-        {% endif %}
-        <a href="/download/{{ document[2] }}" class="btn btn-success">⬇️ Download Document</a>
+    <!-- UPLOAD & SIGN -->
+    <div class="card p-4 mb-4">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label class="form-label">Select Document</label>
+                <input type="file" name="file" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Comment (Optional)</label>
+                <input type="text" name="comment" class="form-control" placeholder="e.g., Reviewed and approved">
+            </div>
+            <button type="submit" class="btn btn-primary">🔐 Sign & Save</button>
+        </form>
     </div>
 
-    <hr>
-    <h5>📤 Forward Document</h5>
-    <form method="POST" action="/forward/{{ document[0] }}">
-        <div class="mb-3">
-            <label class="form-label">Forward To</label>
-            <select name="next_user" class="form-control" required>
-                <option value="" disabled selected>Select a recipient...</option>
-                {% for user in users %}
-                    <option value="{{ user[0] }}">{{ user[0] }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Comment</label>
-            <textarea name="comment" class="form-control" rows="3" placeholder="Add a note for the recipient"></textarea>
-        </div>
-
-        <button type="submit" class="btn btn-primary">📤 Forward Document</button>
-    </form>
-</div>
-
-<h4>🕒 Workflow History</h4>
-<table class="table table-bordered">
-    <thead class="table-dark">
-        <tr>
-            <th>Signer</th>
-            <th>Comment</th>
-            <th>Action</th>
-            <th>Step</th>
-            <th>Time</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for h in history %}
-        <tr>
-            <td>{{ h[0] }}</td>
-            <td>{{ h[1] }}</td>
-            <td>{{ h[2] }}</td>
-            <td>{{ h[3] }}</td>
-            <td>{{ h[4] }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-<!-- SPREADSHEET VIEWER MODAL -->
-<div class="modal fade" id="spreadsheetModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">📊 Document Preview</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" style="max-height: 70vh; overflow: auto;">
-                <div id="spreadsheet-container"></div>
-            </div>
-        </div>
+    <!-- DOWNLOAD SECTION -->
+    {% if signed_file %}
+    <div class="card p-4 bg-light">
+        <h4>✅ Document Signed Successfully</h4>
+        <p class="text-muted">Filename: <code>{{ signed_file }}</code></p>
+        <a href="{{ url_for('download', filename=signed_file) }}" class="btn btn-success btn-lg">
+            ⬇️ Download Signed Document
+        </a>
     </div>
+    {% endif %}
 </div>
-
-<!-- SheetJS Library -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script>
-function viewSpreadsheet(filename) {
-    fetch('/view/' + filename)
-        .then(res => {
-            if (!res.ok) throw new Error('Failed to load file');
-            return res.arrayBuffer();
-        })
-        .then(data => {
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const htmlTable = XLSX.utils.sheet_to_html(firstSheet);
-            
-            document.getElementById('spreadsheet-container').innerHTML = htmlTable;
-            
-            // Style the generated table
-            const table = document.getElementById('spreadsheet-container').querySelector('table');
-            if (table) {
-                table.classList.add('table', 'table-bordered', 'table-striped');
-            }
-            
-            const modal = new bootstrap.Modal(document.getElementById('spreadsheetModal'));
-            modal.show();
-        })
-        .catch(err => {
-            alert('Error viewing document: ' + err.message);
-        });
-}
-</script>
-
 {% endblock %}
