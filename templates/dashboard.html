@@ -1,45 +1,79 @@
-<!-- SIGNED DOCUMENT SECTION -->
-{% if signed_file and doc_id %}
-<div class="card p-3">
-    <h5>Signed Document Ready</h5>
-    
-    <!-- DOWNLOAD -->
-    <a href="{{ url_for('download', filename=signed_file) }}" class="btn btn-success mb-3">
-        ⬇️ Download Signed Document
-    </a>
+{% extends "base.html" %}
 
-    <hr>
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Dashboard</h2>
 
-    <!-- FORWARD FORM -->
-    <h6>Forward Document</h6>
-    <!-- ✅ Notice the doc_id=doc_id here -->
-    <form method="POST" action="{{ url_for('forward_document', doc_id=doc_id) }}">
-        <div class="mb-3">
-            <label class="form-label"><strong>Forward To</strong></label>
-            <select name="forward_to" class="form-control" required>
-                <option value="" disabled selected>Select recipient...</option>
-                {% for user in users %}
-                    <option value="{{ user[0] }}">{{ user[0] }}</option>
-                {% endfor %}
-            </select>
-        </div>
+    <!-- ========================================= -->
+    <!-- SECTION 1: UPLOAD & SIGN DOCUMENT         -->
+    <!-- ========================================= -->
+    <div class="card p-4 mb-4 shadow-sm">
+        <h5 class="mb-3">Upload & Sign Document</h5>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label class="form-label">Select File</label>
+                <input type="file" name="file" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Comment (Optional)</label>
+                <input type="text" name="comment" class="form-control" placeholder="e.g., Initial signing">
+            </div>
+            <button type="submit" class="btn btn-primary">🔐 Sign Document</button>
+        </form>
+    </div>
 
-        <div class="mb-3">
-            <label class="form-label"><strong>Copy To (CC)</strong></label>
-            <select name="copy_to" class="form-control">
-                <option value="">None</option>
-                {% for user in users %}
-                    <option value="{{ user[0] }}">{{ user[0] }}</option>
-                {% endfor %}
-            </select>
-        </div>
+    <!-- ========================================= -->
+    <!-- SECTION 2: SIGNED DOCUMENT ACTIONS        -->
+    <!-- ========================================= -->
+    {% if signed_file and doc_id %}
+    <div class="card p-4 shadow-sm border-success">
+        <h5 class="text-success mb-3">✅ Document Signed Successfully</h5>
+        <p class="text-muted">Filename: <code>{{ signed_file }}</code></p>
+        
+        <!-- DOWNLOAD BUTTON -->
+        <a href="{{ url_for('download', filename=signed_file) }}" class="btn btn-success mb-4">
+            ⬇️ Download Signed Document
+        </a>
 
-        <div class="mb-3">
-            <label class="form-label"><strong>Comment</strong></label>
-            <textarea name="comment" class="form-control" rows="3" placeholder="Add a note..."></textarea>
-        </div>
+        <hr>
 
-        <button type="submit" class="btn btn-primary">📤 Forward Document</button>
-    </form>
+        <!-- FORWARD FORM -->
+        <h5 class="mt-4 mb-3">📤 Forward Document</h5>
+        <!-- ✅ The doc_id=doc_id fixes the BuildError -->
+        <form method="POST" action="{{ url_for('forward_document', doc_id=doc_id) }}">
+            
+            <!-- Forward To Dropdown -->
+            <div class="mb-3">
+                <label class="form-label"><strong>Forward To</strong></label>
+                <select name="forward_to" class="form-control" required>
+                    <option value="" disabled selected>Select a recipient...</option>
+                    {% for user in users %}
+                        <option value="{{ user[0] }}">{{ user[0] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Copy To (CC) Dropdown -->
+            <div class="mb-3">
+                <label class="form-label"><strong>Copy To (CC)</strong></label>
+                <select name="copy_to" class="form-control">
+                    <option value="">None</option>
+                    {% for user in users %}
+                        <option value="{{ user[0] }}">{{ user[0] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Comment Textarea -->
+            <div class="mb-3">
+                <label class="form-label"><strong>Comment</strong></label>
+                <textarea name="comment" class="form-control" rows="3" placeholder="Add a note for the recipient..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">📤 Forward Document</button>
+        </form>
+    </div>
+    {% endif %}
+
 </div>
-{% endif %}
+{% endblock %}
