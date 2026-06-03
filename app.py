@@ -249,12 +249,23 @@ def login():
         flash("Invalid login")
     return render_template("login.html")
 
+# =========================================
+# ✅ UPDATED DASHBOARD ROUTE
+# =========================================
 @app.route("/dashboard", methods=["GET", "POST"])
 def dashboard():
     if "username" not in session:
         return redirect("/login")
     
     signed_file = None
+    doc_id = None
+    
+    # Fetch users for dropdowns (exclude current user)
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT username FROM users WHERE username != %s", (session["username"],))
+    users = cur.fetchall()
+    conn.close()
     
     if request.method == "POST":
         try:
@@ -291,7 +302,8 @@ def dashboard():
             app.logger.error(f"Sign error: {e}")
             flash(f"Error: {str(e)}")
     
-    return render_template("dashboard.html", signed_file=signed_file)
+    # ✅ Pass doc_id and users to the template
+    return render_template("dashboard.html", signed_file=signed_file, doc_id=doc_id, users=users)
 
 @app.route("/download/<filename>")
 def download(filename):
